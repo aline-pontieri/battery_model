@@ -1,30 +1,54 @@
-"""Upload a CSV exported from DBeaver to Google Drive battery_models/dataset."""
+"""Run battery SQL on Athena, save CSV locally, upload to Google Drive."""
 
-import sys
+from datetime import datetime
 from pathlib import Path
+
+import awswrangler as wr
+import boto3
+from dotenv import load_dotenv
+import os
 
 import gdrive
 
+load_dotenv()
+
+ROOT = Path(__file__).parent
+OUTPUT_DIR = ROOT / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+
+def run_query() -> Path:
+    sql = (ROOT / "query.sql").read_text()
+
+    session = boto3.Session(
+        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+        aws_session_token=os.environ.get("AWS_SESSION_TOKEN"),
+        region_name=os.environ["AWS_REGION"],
+    )
+
+    print("Running Athena query...")
+    df = wr.athena.read_sql_query(
+        sql=sql,
+        database="prod_bo2dl_bloqs_gluedb_prepared",
+        s3_output=os.environ["ATHENA_S3_OUTPUT"],
+        boto3_session=session,
+    )
+    print(f"  {len(df):,} rows returned.")
+
+    filename = f"battery_soc_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    csv_path = OUTPUT_DIR / filename
+    df.to_csv(csv_path, index=False)
+    print(f"  Saved: {csv_path}")
+    return csv_path
+
 
 def main():
-    if len(sys.argv) < 2:
-        # if no argument, pick the most recently modified CSV in the current folder
-        csvs = sorted(Path(".").glob("*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
-        if not csvs:
-            print("No CSV file found. Usage: python run.py your_file.csv")
-            sys.exit(1)
-        csv_path = csvs[0]
-        print(f"No file specified — using most recent CSV: {csv_path.name}")
-    else:
-        csv_path = Path(sys.argv[1])
-        if not csv_path.exists():
-            print(f"File not found: {csv_path}")
-            sys.exit(1)
+    csv_path = run_query()
 
-    print("Authenticating with Google Drive...")
+    print("Uploading to Google Drive...")
     service = gdrive.get_service()
     folder_id = gdrive.get_dataset_folder_id(service)
-
     gdrive.upload_file(service, csv_path, folder_id)
     print("Done.")
 
