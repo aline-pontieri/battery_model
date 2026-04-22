@@ -19,10 +19,24 @@ INPUT_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
+def _filename_datetime(f: Path):
+    """Extract datetime from filenames like 202604210854_battery_deploy.csv."""
+    import re
+    m = re.match(r"(\d{12})", f.name)
+    if m:
+        from datetime import datetime
+        return datetime.strptime(m.group(1), "%Y%m%d%H%M")
+    m = re.match(r"(\d{8})", f.name)
+    if m:
+        from datetime import datetime
+        return datetime.strptime(m.group(1), "%Y%m%d")
+    return f.stat().st_mtime  # fallback
+
+
 def get_input_csv() -> Path:
     if len(sys.argv) >= 2:
         return Path(sys.argv[1])
-    csvs = sorted(INPUT_DIR.glob("*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+    csvs = sorted(INPUT_DIR.glob("*.csv"), key=_filename_datetime, reverse=True)
     if not csvs:
         print("No CSV found in input/. Export your DBeaver query there first.")
         sys.exit(1)
