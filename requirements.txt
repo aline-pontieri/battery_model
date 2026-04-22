@@ -1,2 +1,6 @@
+pandas
+numpy
+scikit-learn
+joblib
 google-auth
 google-api-python-client

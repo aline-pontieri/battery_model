@@ -1,10 +1,11 @@
-"""Google Drive helpers: authenticate via service account, upload files."""
+"""Google Drive helpers: authenticate via service account, upload/download files."""
 
+import io
 from pathlib import Path
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS_PATH = Path(__file__).parent / "credentials.json"
@@ -28,9 +29,30 @@ def find_folder_id(service, folder_name: str, parent_id: str = None) -> str:
     return files[0]["id"]
 
 
+def get_battery_models_folder_id(service) -> str:
+    return find_folder_id(service, "battery_models")
+
+
 def get_dataset_folder_id(service) -> str:
-    battery_models_id = find_folder_id(service, "battery_models")
+    battery_models_id = get_battery_models_folder_id(service)
     return find_folder_id(service, "dataset", parent_id=battery_models_id)
+
+
+def download_file(service, filename: str, folder_id: str, dest_path: Path):
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+    results = service.files().list(q=query, fields="files(id)").execute()
+    files = results.get("files", [])
+    if not files:
+        raise FileNotFoundError(f"'{filename}' not found in Drive folder.")
+    file_id = files[0]["id"]
+    request = service.files().get_media(fileId=file_id)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest_path, "wb") as f:
+        downloader = MediaIoBaseDownload(f, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+    print(f"Downloaded: {filename} → {dest_path}")
 
 
 def upload_file(service, local_path: Path, folder_id: str) -> str:
