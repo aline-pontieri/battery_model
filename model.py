@@ -19,8 +19,10 @@ FEATURES_ALL = NUM_FEATURES + CAT_FEATURES
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df["timestamp"] = pd.to_datetime(df.get("hour_bucket", df.get("timestamp")), errors="coerce")
-    df = df.rename(columns={"hour_bucket": "timestamp"}) if "hour_bucket" in df.columns else df
+    if "hour_bucket" in df.columns:
+        df = df.drop(columns=["timestamp"], errors="ignore")
+        df = df.rename(columns={"hour_bucket": "timestamp"})
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
     sort_cols = ["bloqs_id", "timestamp"]
     if "battery_name" in df.columns:

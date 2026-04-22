@@ -1,20 +1,30 @@
-"""Google Drive helpers: authenticate via service account, upload/download files."""
+"""Google Drive helpers: authenticate via OAuth, upload/download files."""
 
 import io
 from pathlib import Path
 
-from google.oauth2 import service_account
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS_PATH = Path(__file__).parent / "credentials.json"
+TOKEN_PATH = Path(__file__).parent / "token.json"
 
 
 def get_service():
-    creds = service_account.Credentials.from_service_account_file(
-        CREDENTIALS_PATH, scopes=SCOPES
-    )
+    creds = None
+    if TOKEN_PATH.exists():
+        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
+            creds = flow.run_local_server(port=0)
+        TOKEN_PATH.write_text(creds.to_json())
     return build("drive", "v3", credentials=creds)
 
 
@@ -25,7 +35,7 @@ def find_folder_id(service, folder_name: str, parent_id: str = None) -> str:
     results = service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get("files", [])
     if not files:
-        raise FileNotFoundError(f"Folder '{folder_name}' not found. Make sure you shared it with the service account.")
+        raise FileNotFoundError(f"Folder '{folder_name}' not found on Google Drive.")
     return files[0]["id"]
 
 
