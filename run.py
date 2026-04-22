@@ -5,17 +5,17 @@ from pathlib import Path
 
 import gdrive
 
-OUTPUT_DIR = Path(__file__).parent / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+INPUT_DIR = Path(__file__).parent / "input"
+INPUT_DIR.mkdir(exist_ok=True)
 
 
 def main():
     if len(sys.argv) >= 2:
         csv_path = Path(sys.argv[1])
     else:
-        csvs = sorted(OUTPUT_DIR.glob("*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+        csvs = sorted(INPUT_DIR.glob("*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
         if not csvs:
-            print("No CSV found in output/. Export your DBeaver query there first.")
+            print("No CSV found in input/. Export your DBeaver query there first.")
             sys.exit(1)
         csv_path = csvs[0]
         print(f"Using: {csv_path.name}")

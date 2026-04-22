@@ -3,7 +3,7 @@ __pycache__/
 .env
 token.json
 credentials.json
-output/
+input/
 .venv/
 venv/
 *.egg-info/
